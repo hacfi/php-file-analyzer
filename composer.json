@@ -1,0 +1,35 @@
+{
+    "name": "hacfi/php-file-analyzer",
+    "type": "application",
+    "description": "PHP File Analyzer",
+    "keywords": ["analysis"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name":"Philipp Wahala",
+            "email":"philipp.wahala@gmail.com"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "git@github.com:hacfi/PhpMetrics.git"
+        }
+    ],
+    "require": {
+        "php": ">=5.4",
+        "ext-tokenizer": "*",
+        "symfony/console": "~2.3",
+        "symfony/finder": "~2.1",
+        "symfony/process": "~2.3",
+        "halleck45/phpmetrics": "dev-111_Trait"
+    },
+    "autoload": {
+        "psr-4": {
+            "PHPFileAnalyzer\\": "src"
+        }
+    },
+    "bin": [
+        "phpfa"
+    ]
+}

@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+
+$loaded = false;
+
+foreach ([__DIR__.'/vendor/autoload.php', __DIR__.'/../../autoload.php'] as $file) {
+    if (file_exists($file)) {
+        require $file;
+        $loaded = true;
+        break;
+    }
+}
+
+if (!$loaded) {
+    die('Could not find autoload.php. Did you forget to run "composer install"?'.PHP_EOL);
+}
+
+$app = new PHPFileAnalyzer\Console\Application();
+$app->run();
