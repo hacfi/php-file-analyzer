@@ -1,6 +1,6 @@
 {
     "name": "hacfi/php-file-analyzer",
-    "type": "application",
+    "type": "library",
     "description": "PHP File Analyzer",
     "keywords": ["analysis"],
     "license": "MIT",
