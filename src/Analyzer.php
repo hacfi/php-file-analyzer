@@ -143,7 +143,7 @@ class Analyzer
 
             $reflection = new \ReflectionClass($class->getFullname());
             //$data['constants'] = $this->processConstants($reflection);
-            $data['constants'] = $reflection->getConstants();
+            $data['constants'] = $this->processConstants($reflection);
             $data['properties'] = $this->processProperties($reflection);
         } catch (\Exception $e) {
 
@@ -160,25 +160,8 @@ class Analyzer
     {
         $constants = [];
 
-        foreach ($class->getConstants() as $constant) {
-
-            $constants = [];
-
-            /** @var ReflectedArgument $argument */
-            foreach ($method->getArguments() as $argument) {
-                $arguments[substr($argument->getName(), 1)] = [
-                    'type' => $argument->getType() ?: null,
-                    'required' => $argument->isRequired(),
-                ];
-            }
-
-            $constants[$constants->ge()] = [
-                'arguments' => $arguments,
-                'dependencies' => $method->getDependencies(),
-                //$method->getArguments()
-            ];
-
-            //$methods[$method->getName()] = '';
+        foreach ($class->getConstants() as $constant => $value) {
+            $constants[$constant] = ['value' => $value];
         }
 
         return $constants;
