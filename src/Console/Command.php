@@ -64,10 +64,14 @@ class Command extends AbstractCommand
 
         $analyzer = new Analyzer();
 
-        $result = $analyzer->run($files);
-
         $output->writeln('<html><body><pre>');
+        $output->writeln("not real: ".(memory_get_peak_usage(false)/1024/1024)." MiB\n");
+        $output->writeln("real: ".(memory_get_peak_usage(true)/1024/1024)." MiB\n");
+        $result = $analyzer->run($files);
+        $output->writeln("not real: ".(memory_get_peak_usage(false)/1024/1024)." MiB\n");
+        $output->writeln("real: ".(memory_get_peak_usage(true)/1024/1024)." MiB\n");
         $output->writeln(print_r($result, true));
+
         $output->writeln('</pre></body></html>');
 
         return 0;
