@@ -52,7 +52,7 @@ class Command extends AbstractCommand
 
         try {
             $files = $finder->getIterator();
-        } catch (\Exception $ex) {
+        } catch (\Exception $e) {
             return 1;
         }
 

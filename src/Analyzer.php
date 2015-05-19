@@ -3,15 +3,15 @@
 
 namespace PHPFileAnalyzer;
 
+use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Process\ProcessUtils;
 
-use PhpParser\NodeDumper;
-
 use Composer\Config;
 use Composer\Factory;
 use Composer\IO\BufferIO;
+use Composer\Json\JsonFile;
 use Composer\Package\CompletePackage;
 use Composer\Package\Link;
 use Composer\Package\RootPackage;
@@ -34,6 +34,8 @@ class Analyzer
 {
     const VERSION = '0.0.1';
 
+    const CACHE_FILENAME = 'phpfa.php.cache';
+
     protected $tokenizer;
 
     protected $extractor;
@@ -53,6 +55,12 @@ class Analyzer
      */
     public function run($files)
     {
+        $cache = include $this->getProjectRoot(static::CACHE_FILENAME);
+
+        $stop = 1;
+        return ;
+
+
         ini_set('xdebug.max_nesting_level', 3000);
 
         $code = file_get_contents(__FILE__);
@@ -66,14 +74,15 @@ class Analyzer
             echo 'Parse Error: ', $e->getMessage();
         }
 
-        //$nodeDumper = new NodeDumper();
-        //return $nodeDumper->dump($statements);
+        /*
+        $nodeDumper = new \PhpParser\NodeDumper();
+        return $nodeDumper->dump($statements);
+        */
 
-        $cwd = realpath(__DIR__.'/../../../..');
 
         $io = new BufferIO();
-        $factory = new Factory($io, __DIR__.'/../../../../composer.json', true);
-        $composer = $factory->createComposer($io, __DIR__.'/../../../../composer.json', true, $cwd, true);
+        $factory = new Factory($io, $this->getProjectRoot('composer.json'), true);
+        $composer = $factory->createComposer($io, $this->getProjectRoot('composer.json'), true, $this->getProjectRoot(), true);
 
         $dm = $composer->getDownloadManager();
         $im = $composer->getInstallationManager();
@@ -103,8 +112,7 @@ class Analyzer
         $project->description = $rootPackage->getDescription();
         $project->uniqueName = $rootPackage->getUniqueName();
         $project->vendorDir = $config->get('vendor-dir', Config::RELATIVE_PATHS);
-        $project->baseDir = $cwd ;
-        $project->baseDir2 = $im->getInstallPath($rootPackage);
+        $project->baseDir = $this->getProjectRoot();
 
         //return var_dump($rootPackage);
 
@@ -119,33 +127,88 @@ class Analyzer
             $targetDir = $im->getInstallPath($composerPackage);
             $downloader = $dm->getDownloaderForInstalledPackage($composerPackage);
 
-            if (empty($replaces = $composerPackage->getReplaces())) {
+            $replaces = $composerPackage->getReplaces();
+            if (empty($replaces)) {
                 /** @var Package $package */
                 $package = new Package();
                 $package->name = $composerPackage->getName();
                 $package->description = $composerPackage->getDescription();
                 $package->targetDir = $targetDir;
 
-                $this->registry->set('composer_package', $package->getName(), $package);
+                $this->registry->set('composer_package', $package->name, $package);
 
                 continue;
+            } else {
+
+                $replacedPackages = array_keys($replaces);
+
+                $finder = new Finder();
+                $finder
+                    ->files()
+                    ->in($targetDir)
+                    ->depth('>= 1')
+                    ->name('composer.json')
+                ;
+
+                try {
+                    $individualComposerFiles = $finder->getIterator();
+                } catch (\Exception $e) {
+                    // @TODO: Log
+                    continue;
+                }
+
+                /** @var SplFileInfo $individualComposerFile */
+                foreach ($individualComposerFiles as $individualComposerFile) {
+                    $jsonFile = new JsonFile($individualComposerFile->getRealPath());
+                    $packageConfig = $jsonFile->read();
+
+                    if (!is_array($packageConfig) || !isset($packageConfig['name'])) {
+                        continue;
+                    }
+                    $packageName = $packageConfig['name'];
+
+                    $replacedPackageKey = array_search($packageName, $replacedPackages);
+
+                    if (false === $replacedPackageKey) {
+                        // @TODO: Log
+                        continue;
+                    }
+
+                    /** @var Package $package */
+                    $package = new Package();
+                    $package->name = $packageName;
+                    $package->description = isset($packageConfig['description']) ? $packageConfig['description'] : null;
+                    $package->targetDir = $individualComposerFile->getPath();
+                    $package->replacedBy = $composerPackage->getName();
+
+                    $this->registry->set('composer_package', $package->name, $package);
+
+                    unset($replacedPackages[$replacedPackageKey]);
+                }
+
+                if (!empty($replacedPackages)) {
+                    // @TODO: Log
+                }
+
+                /*
+
+                foreach ($replaces as $packageName => $packageLink) {
+                    /** @var Link $packageLink * /
+                    $package = new Package();
+                    $package->name = $packageLink->getSource();
+                    $package->description = $packageLink->getPrettyString($composerPackage);
+
+                    // @TODO: Expand replaced packages - now I know the downside of subtree splits
+
+                    $this->registry->set('composer_package', $package->name, $package);
+                }
+                */
             }
 
-            foreach ($replaces as $packageName => $packageLink) {
-                /** @var Link $packageLink */
-                $package = new Package();
-                $package->name = $packageLink->getSource();
-                $package->description = $packageLink->getPrettyString($composerPackage);
-
-                // @TODO: Expand replaced packages - now I know the downside of subtree splits
-
-                $this->registry->set('composer_package', $package->getName(), $package);
-
-
-            }
             //$result[] = var_export($replaces, true);
-
         }
+
+        $cache = file_put_contents($this->getProjectRoot(static::CACHE_FILENAME), '<?php return unserialize('.var_export(serialize($this->registry), true).');');
 
         return $this->registry;
 
@@ -182,7 +245,7 @@ class Analyzer
      */
     protected function lintFile($path)
     {
-        $lintProcess = new Process('php -l '.ProcessUtils::escapeArgument($path));
+        $lintProcess = new Process('php -l ' . ProcessUtils::escapeArgument($path));
         $lintProcess->setTimeout(null);
         $lintProcess->run();
 
@@ -318,5 +381,15 @@ class Analyzer
         }
 
         return $methods;
+    }
+
+    /**
+     * @param string|null $filename
+     *
+     * @return string
+     */
+    protected function getProjectRoot($filename = null)
+    {
+        return realpath(__DIR__ . '/../../../..') . ($filename ? '/' . $filename : '');
     }
 }
