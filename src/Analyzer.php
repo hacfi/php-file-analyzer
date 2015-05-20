@@ -26,8 +26,9 @@ use Hal\Component\OOP\Reflected\ReflectedClass;
 use Hal\Component\OOP\Reflected\ReflectedMethod;
 use Hal\Component\OOP\Reflected\ReflectedTrait;
 
+use PHPFileAnalyzer\Data\Index;
 use PHPFileAnalyzer\Data\InformationRegistry;
-use PHPFileAnalyzer\Model\Composer\Package as Package;
+use PHPFileAnalyzer\Model\Composer\Package as Package; // Workaround for an issue with PhpStorm autocompletion
 use PHPFileAnalyzer\Model\Composer\Project;
 
 class Analyzer
@@ -57,6 +58,9 @@ class Analyzer
     {
         if (is_file($this->getProjectRoot(static::CACHE_FILENAME))) {
             $cache = include $this->getProjectRoot(static::CACHE_FILENAME);
+
+            $stop = 1;
+            //return $cache;
         }
 
         ini_set('xdebug.max_nesting_level', 3000);
@@ -67,7 +71,6 @@ class Analyzer
 
         try {
             $statements = $parser->parse($code);
-            // $stmts is an array of statement nodes
         } catch (\PhpParser\Error $e) {
             echo 'Parse Error: ', $e->getMessage();
         }
@@ -110,11 +113,15 @@ class Analyzer
         $project->description = $rootPackage->getDescription();
         $project->uniqueName = $rootPackage->getUniqueName();
         $project->vendorDir = $config->get('vendor-dir', Config::RELATIVE_PATHS);
-        $project->baseDir = $this->getProjectRoot();
+        $project->basePath = $this->getProjectRoot();
+        $project->autoload= $rootPackage->getAutoload();
+        $project->autoloadDev= $rootPackage->getDevAutoload();
+        $project->requiredPackages = array_keys($rootPackage->getRequires());
+        $project->requiredDevPackages = array_keys($rootPackage->getDevRequires());
+        $project->minimumStability= $rootPackage->getMinimumStability();
+        $project->preferStable= $rootPackage->getPreferStable();
 
-        //return var_dump($rootPackage);
-
-        $this->registry->set('composer_project', 'project', $project);
+        $this->registry->set('composer_package', '__root__', $project);
 
         $result = [];
         $i = 0;
@@ -131,6 +138,7 @@ class Analyzer
                 $package = new Package();
                 $package->name = $composerPackage->getName();
                 $package->description = $composerPackage->getDescription();
+                $package->type = $composerPackage->getType();
                 $package->targetDir = $targetDir;
 
                 $this->registry->set('composer_package', $package->name, $package);
@@ -206,9 +214,8 @@ class Analyzer
             //$result[] = var_export($replaces, true);
         }
 
-        $cache = file_put_contents($this->getProjectRoot(static::CACHE_FILENAME), '<?php return unserialize('.var_export(serialize($this->registry), true).');');
 
-        return $this->registry;
+        //return $this->registry;
 
         $result = [
             'files' => [],
@@ -231,8 +238,12 @@ class Analyzer
 
             $fileAnalysis['oop'] = $this->processOop($file);
 
-            $result['files'][$file->getRealPath()] = $fileAnalysis;
+            $result['files'][$file->getRelativePathname()] = $fileAnalysis;
         }
+
+        $this->registry->setIndex(new Index('files', $result['files']));
+
+        $cache = file_put_contents($this->getProjectRoot(static::CACHE_FILENAME), '<?php return unserialize('.var_export(serialize($this->registry), true).');');
 
         return $result;
     }
@@ -311,7 +322,7 @@ class Analyzer
             $data['constants'] = $this->processConstants($reflection);
             $data['properties'] = $this->processProperties($reflection);
         } catch (\Exception $e) {
-
+            $log = 'me';
         }
 
         return $data;

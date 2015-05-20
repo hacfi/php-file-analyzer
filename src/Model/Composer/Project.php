@@ -4,23 +4,12 @@
 namespace PHPFileAnalyzer\Model\Composer;
 
 
-class Project
+class Project extends Package
 {
-    public $name;
     public $minimumStability;
     public $preferStable;
-    public $type;
     public $uniqueName;
-    public $description;
-    public $autoload;
-    public $requiredPackages;
-    public $requiredDevPackages;
 
-    public $targetDir;
+    public $basePath;
     public $vendorDir;
-    public $baseDir;
-    public $baseDir2;
-
-    public $files;
-
 }

@@ -12,10 +12,13 @@ class Index extends ArrayCollection
      */
     private $name;
 
-    public function __construct($name)
+    public function __construct($name, array $elements = array())
     {
         $this->name = $name;
+
+        parent::__construct($elements);
     }
+
 
     public function add($value)
     {

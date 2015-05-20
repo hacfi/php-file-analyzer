@@ -65,6 +65,18 @@ class InformationRegistry implements \Countable
         return $this;
     }
 
+    /**
+     * @param Index $index
+     *
+     * @return $this
+     */
+    public function setIndex(Index $index)
+    {
+        $this->map[$index->getName()] = $index;
+
+        return $this;
+    }
+
     public function getIndexes()
     {
         return array_keys($this->map);

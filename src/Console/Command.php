@@ -40,7 +40,7 @@ class Command extends AbstractCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $paths = $input->getArgument('paths');
+        $paths = $input->getArgument('paths') ?: [getcwd()];
 
         $finder = new Finder();
         $finder->files();
