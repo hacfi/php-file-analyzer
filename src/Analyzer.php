@@ -55,11 +55,9 @@ class Analyzer
      */
     public function run($files)
     {
-        $cache = include $this->getProjectRoot(static::CACHE_FILENAME);
-
-        $stop = 1;
-        return ;
-
+        if (is_file($this->getProjectRoot(static::CACHE_FILENAME))) {
+            $cache = include $this->getProjectRoot(static::CACHE_FILENAME);
+        }
 
         ini_set('xdebug.max_nesting_level', 3000);
 
