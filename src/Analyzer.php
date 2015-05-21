@@ -26,10 +26,18 @@ use Hal\Component\OOP\Reflected\ReflectedClass;
 use Hal\Component\OOP\Reflected\ReflectedMethod;
 use Hal\Component\OOP\Reflected\ReflectedTrait;
 
+use PhpParser\Error;
+use PhpParser\Lexer;
+use PhpParser\NodeDumper;
+use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitor\NameResolver;
+use PhpParser\Parser;
+
 use PHPFileAnalyzer\Data\Index;
 use PHPFileAnalyzer\Data\InformationRegistry;
 use PHPFileAnalyzer\Model\Composer\Package as Package; // Workaround for an issue with PhpStorm autocompletion
 use PHPFileAnalyzer\Model\Composer\Project;
+use PHPFileAnalyzer\PhpParser\NodeVisitor;
 
 class Analyzer
 {
@@ -67,18 +75,23 @@ class Analyzer
 
         $code = file_get_contents(__FILE__);
 
-        $parser = new \PhpParser\Parser(new \PhpParser\Lexer());
+        $parser = new Parser(new Lexer());
 
         try {
             $statements = $parser->parse($code);
-        } catch (\PhpParser\Error $e) {
+        } catch (Error $e) {
             echo 'Parse Error: ', $e->getMessage();
         }
 
-        /*
-        $nodeDumper = new \PhpParser\NodeDumper();
+
+        $traverser = new NodeTraverser();
+        $nodeVisitor = new NodeVisitor();
+        $traverser->addVisitor(new NameResolver());
+        $traverser->addVisitor($nodeVisitor);
+        $statements = $traverser->traverse($statements);
+
+        $nodeDumper = new NodeDumper();
         return $nodeDumper->dump($statements);
-        */
 
 
         $io = new BufferIO();
