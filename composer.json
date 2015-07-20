@@ -24,6 +24,7 @@
         "symfony/process": "~2.3",
         "halleck45/phpmetrics": "dev-111_Trait",
         "composer/composer": "1.0.*@dev",
+        "nikic/php-parser": "2.0.*@dev",
         "phpunit/php-token-stream": ">1.0@dev",
         "doctrine/collections": "~1.3"
     },

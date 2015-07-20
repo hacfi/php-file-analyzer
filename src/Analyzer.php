@@ -3,6 +3,9 @@
 
 namespace PHPFileAnalyzer;
 
+use Composer\Package\Dumper\ArrayDumper;
+use PHPFileAnalyzer\Composer\ComposerParser;
+use PHPFileAnalyzer\Composer\FileListGenerator;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 use Symfony\Component\Process\Process;
@@ -31,7 +34,8 @@ use PhpParser\Lexer;
 use PhpParser\NodeDumper;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\Parser;
+use PhpParser\Parser\Php5;
+use PhpParser\ParserFactory;
 
 use PHPFileAnalyzer\Data\Index;
 use PHPFileAnalyzer\Data\InformationRegistry;
@@ -41,7 +45,7 @@ use PHPFileAnalyzer\PhpParser\NodeVisitor;
 
 class Analyzer
 {
-    const VERSION = '0.0.1';
+    const VERSION = '0.0.2';
 
     const CACHE_FILENAME = 'phpfa.php.cache';
 
@@ -49,12 +53,20 @@ class Analyzer
 
     protected $extractor;
 
+    protected $registry;
+
+    protected $parser;
+
     public function __construct()
     {
         $this->tokenizer = new Tokenizer();
         $this->extractor = new Extractor($this->tokenizer);
 
         $this->registry = InformationRegistry::getInstance();
+
+        //$parser = new Php5(new Lexer());
+        /** @var Php5 $parser */
+        $this->parser = (new ParserFactory())->create(ParserFactory::ONLY_PHP5);
     }
 
 
@@ -71,54 +83,67 @@ class Analyzer
             //return $cache;
         }
 
-        ini_set('xdebug.max_nesting_level', 3000);
-
-        $code = file_get_contents(__FILE__);
-
-        $parser = new Parser(new Lexer());
-
-        try {
-            $statements = $parser->parse($code);
-        } catch (Error $e) {
-            echo 'Parse Error: ', $e->getMessage();
+        if (extension_loaded('xdebug')) {
+            ini_set('xdebug.max_nesting_level', 3000);
         }
+
 
 
         $traverser = new NodeTraverser();
         $nodeVisitor = new NodeVisitor();
         $traverser->addVisitor(new NameResolver());
         $traverser->addVisitor($nodeVisitor);
+
+        if (false) {
+        $code = file_get_contents(__FILE__);
+            try {
+                $statements = $this->parser->parse($code);
+            } catch (Error $e) {
+                echo 'Parse Error: ', $e->getMessage();
+            }
         $statements = $traverser->traverse($statements);
 
         $nodeDumper = new NodeDumper();
         return $nodeDumper->dump($statements);
+        }
 
 
-        $io = new BufferIO();
-        $factory = new Factory($io, $this->getProjectRoot('composer.json'), true);
-        $composer = $factory->createComposer($io, $this->getProjectRoot('composer.json'), true, $this->getProjectRoot(), true);
+        $projectRoot = $this->getProjectRoot();
 
-        $dm = $composer->getDownloadManager();
-        $im = $composer->getInstallationManager();
 
-        /** @var RootPackage $package */
-        $rootPackage = $composer->getPackage();
 
-        ini_set('xdebug.cli_color', 0);
-        ini_set('xdebug.var_display_max_depth', 4);
+        $composerParser = new ComposerParser($projectRoot);
+        $composerParser->parse();
+        $composerFileListGenerator = new FileListGenerator();
+        $files = $composerFileListGenerator->processPackages();
 
-        /** @var InstalledFilesystemRepository $localRepo */
-        $localRepo = $composer->getRepositoryManager()->getLocalRepository();
+        $counter = 0;
 
-        $packageMap = $composer->getAutoloadGenerator()->buildPackageMap($composer->getInstallationManager(), $rootPackage, $localRepo->getCanonicalPackages());
-        $autoloads = $composer->getAutoloadGenerator()->parseAutoloads($packageMap, $rootPackage);
+        foreach ($files as $file) {
+            $counter++;
 
-        /** @var CompletePackage[] $composerPackages */
-        $composerPackages = $localRepo->getCanonicalPackages();
+            if ($counter < 300) {
+                continue;
+            }
+            if ($counter > 400) {
+                break;
+            }
 
-        $config = $composer->getConfig();
+            try {
+                $statements = $this->parser->parse(file_get_contents($file));
+            } catch (Error $e) {
+                echo 'Parse Error: ', $e->getMessage();
+            }
+
+            $statements = $traverser->traverse($statements);
+        }
+
+        $cache = file_put_contents($this->getProjectRoot(static::CACHE_FILENAME), '<?php return unserialize('.var_export(serialize($this->registry), true).');');
+
+        return 'a';
+
         $filesystem = new Filesystem();
-        $vendorPath = $filesystem->normalizePath(realpath($config->get('vendor-dir')));
+        $vendorPath = $filesystem->normalizePath(realpath($vendorPath));
 
         $project = new Project();
         $project->name = $rootPackage->getName();
@@ -126,7 +151,7 @@ class Analyzer
         $project->description = $rootPackage->getDescription();
         $project->uniqueName = $rootPackage->getUniqueName();
         $project->vendorDir = $config->get('vendor-dir', Config::RELATIVE_PATHS);
-        $project->basePath = $this->getProjectRoot();
+        $project->basePath = $projectRoot;
         $project->autoload= $rootPackage->getAutoload();
         $project->autoloadDev= $rootPackage->getDevAutoload();
         $project->requiredPackages = array_keys($rootPackage->getRequires());
