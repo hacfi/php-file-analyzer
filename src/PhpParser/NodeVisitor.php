@@ -11,6 +11,12 @@ use PhpParser\Node\Stmt;
 
 class NodeVisitor extends NodeVisitorAbstract
 {
+    /** @var null|Name Current namespace */
+    protected $namespace;
+
+    /** @var array Map of format [aliasType => [aliasName => originalName]] */
+    protected $aliases;
+
     const SCOPE_NAMESPACE = 0;
     const SCOPE_CLASS = 1;
     const SCOPE_METHOD = 2;
@@ -22,11 +28,15 @@ class NodeVisitor extends NodeVisitorAbstract
 
     }
 
-    public function beforeTraverse(array $nodes) {
+    public function beforeTraverse(array $nodes)
+    {
+        $this->resetNamespace();
+
         $this->scope = [];
     }
 
-    public function enterNode(Node $node) {
+    public function enterNode(Node $node)
+    {
         if ($node instanceof Stmt\Namespace_) {
             $stop = 2; //
             $this->scope[self::SCOPE_NAMESPACE] = $node;
@@ -53,7 +63,8 @@ class NodeVisitor extends NodeVisitorAbstract
         }
     }
 
-    public function leaveNode(Node $node) {
+    public function leaveNode(Node $node)
+    {
         if ($node instanceof Stmt\Namespace_) {
             $this->scope = [];
         } elseif ($node instanceof Stmt\Class_) {
@@ -71,11 +82,24 @@ class NodeVisitor extends NodeVisitorAbstract
         }
     }
 
-    public function afterTraverse(array $nodes) {
+    public function afterTraverse(array $nodes)
+    {
         $stop = 4;
     }
 
-    protected function resolveClassName(Name $name) {
+
+    protected function resetNamespace(Name $namespace = null)
+    {
+        $this->namespace = $namespace;
+        $this->aliases = [
+            Stmt\Use_::TYPE_NORMAL => [],
+            Stmt\Use_::TYPE_FUNCTION => [],
+            Stmt\Use_::TYPE_CONSTANT => [],
+        ];
+    }
+
+    protected function resolveClassName(Name $name)
+    {
         // don't resolve special class names
         if (in_array(strtolower($name->toString()), array('self', 'parent', 'static'))) {
             if (!$name->isUnqualified()) {
